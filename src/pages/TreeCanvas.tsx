@@ -84,6 +84,7 @@ const TreeCanvasInner = () => {
   const { fitView, zoomIn, zoomOut } = useReactFlow();
 
   const {
+    _hasHydrated,
     nodes, edges, setNodes, setEdges,
     onNodesChange, onEdgesChange,
     selectedPersonId, selectPerson,
@@ -97,13 +98,14 @@ const TreeCanvasInner = () => {
 
   // ─── Initialize demo data ───
   useEffect(() => {
+    if (!_hasHydrated) return;
     if (initialized.current) return;
     initialized.current = true;
     if (useTreeStore.getState().nodes.length === 0) {
       setNodes(DEMO_NODES);
       setEdges(DEMO_EDGES);
     }
-  }, [setNodes, setEdges]);
+  }, [_hasHydrated, setNodes, setEdges]);
 
   // ─── Update card rect ───
   const updateCardRect = useCallback(() => {

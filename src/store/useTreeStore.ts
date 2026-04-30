@@ -30,6 +30,8 @@ interface ConnectionMode {
 }
 
 interface TreeState {
+  _hasHydrated: boolean;
+  setHasHydrated: (state: boolean) => void;
   /* Data */
   nodes: Node[];
   edges: Edge[];
@@ -92,6 +94,8 @@ const updateVisibility = (nodes: Node[], edges: Edge[], collapsed: Set<string>) 
 export const useTreeStore = create<TreeState>()(
   persist(
     (set, get) => ({
+      _hasHydrated: false,
+      setHasHydrated: (state) => set({ _hasHydrated: state }),
       nodes: [],
       edges: [],
       selectedPersonId: null,
@@ -144,6 +148,9 @@ export const useTreeStore = create<TreeState>()(
     {
       name: 'familystory-tree',
       storage: createJSONStorage(() => supabaseStorage),
+      onRehydrateStorage: () => (state) => {
+        state?.setHasHydrated(true);
+      },
       partialize: (state) => ({
         nodes: state.nodes,
         edges: state.edges,
