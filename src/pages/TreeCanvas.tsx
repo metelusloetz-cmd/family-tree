@@ -56,6 +56,11 @@ const TreeCanvasInner = () => {
     x: number; y: number; width: number; height: number;
   } | null>(null);
 
+  // Blocks canvas panning while a connection handle is being dragged (critical for mobile)
+  const [isConnecting, setIsConnecting] = useState(false);
+  const handleConnectStart = useCallback(() => setIsConnecting(true), []);
+  const handleConnectEnd = useCallback(() => setIsConnecting(false), []);
+
   // No demo data initialization — start fresh
 
   // ─── Update card rect ───
@@ -307,12 +312,15 @@ const TreeCanvasInner = () => {
           onNodeDoubleClick={handleNodeDoubleClick}
           onPaneClick={handlePaneClick}
           onConnect={handleConnect}
+          onConnectStart={handleConnectStart}
+          onConnectEnd={handleConnectEnd}
           onMoveEnd={handleMoveEnd}
           fitView
           fitViewOptions={{ padding: 0.15 }}
           minZoom={0.1}
           maxZoom={2.5}
           deleteKeyCode={null}
+          panOnDrag={!isConnecting}
           connectionLineStyle={{ stroke: 'var(--color-primary)', strokeWidth: 1.5, strokeDasharray: '6 3' }}
           defaultEdgeOptions={{
             type: 'smart',
