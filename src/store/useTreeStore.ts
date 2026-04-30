@@ -62,6 +62,11 @@ interface TreeState {
   cancelConnection: () => void;
   toggleCollapse: (id: string) => void;
   setBackgroundImage: (url: string | null) => void;
+
+  /* Long-press connection mode (mobile) */
+  pendingConnection: { nodeId: string; handleId: string; screenX: number; screenY: number } | null;
+  startPendingConnection: (info: { nodeId: string; handleId: string; screenX: number; screenY: number }) => void;
+  cancelPendingConnection: () => void;
 }
 
 /* ─── Visibility helper for collapsed branches ─── */
@@ -138,6 +143,10 @@ export const useTreeStore = create<TreeState>()(
 
       startConnection: (mode) => set({ connectionMode: mode, selectedPersonId: null }),
       cancelConnection: () => set({ connectionMode: null }),
+
+      pendingConnection: null,
+      startPendingConnection: (info) => set({ pendingConnection: info }),
+      cancelPendingConnection: () => set({ pendingConnection: null }),
 
       toggleCollapse: (id) => {
         const { collapsedNodes, nodes, edges } = get();

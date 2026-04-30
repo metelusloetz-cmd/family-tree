@@ -24,7 +24,43 @@ export const PersonCard = memo(({ id, data, selected }: any) => {
   const editPerson = useTreeStore(s => s.editPerson);
   const isEditing = editingPersonId === id;
 
-  // ─── Check existing relationships to decide which handles to show ───
+  const pendingConnection = useTreeStore(s => s.pendingConnection);
+  const startPendingConnection = useTreeStore(s => s.startPendingConnection);
+  const isSourceCard = pendingConnection?.nodeId === id;
+
+  // Long-press detection for mobile connection
+  const LONG_PRESS_MS = 400;
+  const lpTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lpTouchStart = useRef<{ x: number; y: number } | null>(null);
+
+  const makeLongPress = (handleId: string) => ({
+    onTouchStart: (e: React.TouchEvent) => {
+      const touch = e.touches[0];
+      const el = e.currentTarget as HTMLElement;
+      lpTouchStart.current = { x: touch.clientX, y: touch.clientY };
+      lpTimer.current = setTimeout(() => {
+        const rect = el.getBoundingClientRect();
+        startPendingConnection({
+          nodeId: id,
+          handleId,
+          screenX: rect.left + rect.width / 2,
+          screenY: rect.top + rect.height / 2,
+        });
+      }, LONG_PRESS_MS);
+    },
+    onTouchMove: (e: React.TouchEvent) => {
+      const t = e.touches[0];
+      const s = lpTouchStart.current;
+      if (s && Math.hypot(t.clientX - s.x, t.clientY - s.y) > 8) {
+        if (lpTimer.current) { clearTimeout(lpTimer.current); lpTimer.current = null; }
+      }
+    },
+    onTouchEnd: () => {
+      if (lpTimer.current) { clearTimeout(lpTimer.current); lpTimer.current = null; }
+    },
+  });
+
+  // Check existing relationships to decide which handles to show
   const nodes = useTreeStore(s => s.nodes);
   const edges = useTreeStore(s => s.edges);
 
@@ -48,16 +84,17 @@ export const PersonCard = memo(({ id, data, selected }: any) => {
   const years = [data.birthDate, data.deathDate].filter(Boolean).join('–') || '';
   const borderColor = isMale ? 'var(--color-male)' : isFemale ? 'var(--color-female)' : 'var(--color-border)';
 
-  const showHandles = isHovered || selected;
+  const showHandles = isHovered || selected || isSourceCard || !!pendingConnection;
 
   const handleStyle = (extra: React.CSSProperties): React.CSSProperties => ({
-    width: 10,
-    height: 10,
-    background: borderColor,
+    width: pendingConnection ? 14 : 10,
+    height: pendingConnection ? 14 : 10,
+    background: isSourceCard ? 'var(--color-primary)' : borderColor,
     border: '2px solid #fff',
     opacity: showHandles ? 1 : 0,
-    transition: 'opacity 0.2s ease',
+    transition: 'opacity 0.2s ease, width 0.15s, height 0.15s',
     zIndex: 5,
+    boxShadow: isSourceCard ? '0 0 0 4px rgba(99,102,241,0.25)' : undefined,
     ...extra,
   });
 
@@ -189,25 +226,30 @@ export const PersonCard = memo(({ id, data, selected }: any) => {
       <Handle type="target" position={Position.Top} id="top"
         style={canAcceptParent ? handleStyle({ top: -6 }) : disabledHandleStyle({ top: -6 })}
         isConnectable={canAcceptParent}
+        {...makeLongPress('top')}
       />
       {/* Bottom — always active */}
-      <Handle type="source" position={Position.Bottom} id="bottom" style={handleStyle({ bottom: -6 })} />
+      <Handle type="source" position={Position.Bottom} id="bottom" style={handleStyle({ bottom: -6 })} {...makeLongPress('bottom')} />
       {/* Left/Right — always in DOM, disabled if has spouse */}
       <Handle type="source" position={Position.Left} id="left"
         style={!hasSpouse ? handleStyle({ left: -6 }) : disabledHandleStyle({ left: -6 })}
         isConnectable={!hasSpouse}
+        {...makeLongPress('left')}
       />
       <Handle type="target" position={Position.Left} id="left-target"
         style={!hasSpouse ? handleStyle({ left: -6 }) : disabledHandleStyle({ left: -6 })}
         isConnectable={!hasSpouse}
+        {...makeLongPress('left-target')}
       />
       <Handle type="source" position={Position.Right} id="right"
         style={!hasSpouse ? handleStyle({ right: -6 }) : disabledHandleStyle({ right: -6 })}
         isConnectable={!hasSpouse}
+        {...makeLongPress('right')}
       />
       <Handle type="target" position={Position.Right} id="right-target"
         style={!hasSpouse ? handleStyle({ right: -6 }) : disabledHandleStyle({ right: -6 })}
         isConnectable={!hasSpouse}
+        {...makeLongPress('right-target')}
       />
 
       {/* Photo / initials */}

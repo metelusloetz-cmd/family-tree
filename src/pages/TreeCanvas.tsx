@@ -50,6 +50,7 @@ const TreeCanvasInner = () => {
     selectedPersonId, selectPerson,
     editingPersonId, editPerson,
     backgroundImage, setBackgroundImage,
+    pendingConnection, cancelPendingConnection,
   } = useTreeStore();
 
   const [selectedCardRect, setSelectedCardRect] = useState<{
@@ -227,12 +228,27 @@ const TreeCanvasInner = () => {
   // ─── Clicks ───
   const handleNodeClick = useCallback((_: any, node: Node) => {
     if (node.type === 'family') return;
-    // If clicking while editing another card, close editing
-    if (editingPersonId && editingPersonId !== node.id) {
-      editPerson(null);
+
+    // Complete pending long-press connection
+    if (pendingConnection && pendingConnection.nodeId !== node.id) {
+      const srcHandle = pendingConnection.handleId.replace('-target', '');
+      const tgtHandle = srcHandle === 'bottom' ? 'top'
+                      : srcHandle === 'top' ? 'bottom'
+                      : srcHandle === 'right' ? 'left'
+                      : 'right';
+      handleConnect({
+        source: pendingConnection.nodeId,
+        sourceHandle: srcHandle,
+        target: node.id,
+        targetHandle: tgtHandle,
+      } as any);
+      cancelPendingConnection();
+      return;
     }
+
+    if (editingPersonId && editingPersonId !== node.id) editPerson(null);
     selectPerson(node.id);
-  }, [selectPerson, editingPersonId, editPerson]);
+  }, [pendingConnection, cancelPendingConnection, handleConnect, selectPerson, editingPersonId, editPerson]);
 
   const handleNodeDoubleClick = useCallback((_: any, node: Node) => {
     if (node.type === 'family') return;
@@ -240,9 +256,10 @@ const TreeCanvasInner = () => {
   }, [editPerson]);
 
   const handlePaneClick = useCallback(() => {
+    if (pendingConnection) { cancelPendingConnection(); return; }
     selectPerson(null);
     editPerson(null);
-  }, [selectPerson, editPerson]);
+  }, [pendingConnection, cancelPendingConnection, selectPerson, editPerson]);
 
   // ─── Layout (fitView only for now) ───
   const handleLayout = useCallback(() => {
@@ -320,7 +337,7 @@ const TreeCanvasInner = () => {
           minZoom={0.1}
           maxZoom={2.5}
           deleteKeyCode={null}
-          panOnDrag={!isConnecting}
+          panOnDrag={!isConnecting && !pendingConnection}
           connectionLineStyle={{ stroke: 'var(--color-primary)', strokeWidth: 1.5, strokeDasharray: '6 3' }}
           defaultEdgeOptions={{
             type: 'smart',
@@ -354,8 +371,46 @@ const TreeCanvasInner = () => {
           />
         </ReactFlow>
 
+        {/* Long-press connection tail overlay */}
+        {pendingConnection && (() => {
+          const { screenX, screenY, handleId } = pendingConnection;
+          const d = 48;
+          const tailEnd = handleId.startsWith('right') ? { x: screenX + d, y: screenY }
+                        : handleId.startsWith('left')  ? { x: screenX - d, y: screenY }
+                        : handleId === 'bottom'         ? { x: screenX, y: screenY + d }
+                        :                                 { x: screenX, y: screenY - d };
+          return (
+            <>
+              <svg style={{ position: 'fixed', inset: 0, width: '100vw', height: '100vh', zIndex: 998, pointerEvents: 'none' }}>
+                <defs>
+                  <style>{`@keyframes dash { to { stroke-dashoffset: -20; } }`}</style>
+                </defs>
+                <line
+                  x1={screenX} y1={screenY}
+                  x2={tailEnd.x} y2={tailEnd.y}
+                  stroke="var(--color-primary)" strokeWidth={2.5}
+                  strokeDasharray="6 4"
+                  style={{ animation: 'dash 0.4s linear infinite' }}
+                />
+                <circle cx={screenX} cy={screenY} r={7} fill="var(--color-primary)" opacity={0.85} />
+                <circle cx={tailEnd.x} cy={tailEnd.y} r={4} fill="var(--color-primary)" opacity={0.5} />
+              </svg>
+              {/* Tap-to-cancel hint */}
+              <div style={{
+                position: 'fixed', bottom: 90, left: '50%', transform: 'translateX(-50%)',
+                background: 'rgba(30,41,59,0.85)', color: '#fff',
+                padding: '8px 18px', borderRadius: 20, fontSize: 13,
+                zIndex: 999, pointerEvents: 'none',
+                backdropFilter: 'blur(6px)',
+              }}>
+                Нажмите на карточку для соединения &nbsp;·&nbsp; Нажмите на пустое место для отмены
+              </div>
+            </>
+          );
+        })()}
+
         {/* FloatingActionBar — edit + delete */}
-        {selectedPersonId && !editingPersonId && (
+        {selectedPersonId && !editingPersonId && !pendingConnection && (
           <FloatingActionBar
             cardRect={selectedCardRect}
             onEdit={handleEditFromBar}
