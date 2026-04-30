@@ -1,6 +1,22 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { persist, createJSONStorage } from 'zustand/middleware';
+import type { StateStorage } from 'zustand/middleware';
 import { applyNodeChanges, applyEdgeChanges } from '@xyflow/react';
+import { supabase } from '../supabase';
+
+const supabaseStorage: StateStorage = {
+  getItem: async (_name: string): Promise<string | null> => {
+    const { data, error } = await supabase.from('tree_data').select('data').eq('id', 1).single();
+    if (error || !data) return null;
+    return typeof data.data === 'string' ? data.data : JSON.stringify(data.data);
+  },
+  setItem: async (_name: string, value: string): Promise<void> => {
+    await supabase.from('tree_data').upsert({ id: 1, data: JSON.parse(value) });
+  },
+  removeItem: async (_name: string): Promise<void> => {
+    await supabase.from('tree_data').delete().eq('id', 1);
+  },
+};
 import type { Node, Edge, OnNodesChange, OnEdgesChange, Connection } from '@xyflow/react';
 
 /* ═══════════════════════════════════════════
@@ -127,6 +143,7 @@ export const useTreeStore = create<TreeState>()(
     }),
     {
       name: 'familystory-tree',
+      storage: createJSONStorage(() => supabaseStorage),
       partialize: (state) => ({
         nodes: state.nodes,
         edges: state.edges,
