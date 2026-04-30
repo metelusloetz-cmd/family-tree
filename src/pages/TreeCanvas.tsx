@@ -14,7 +14,6 @@ import { Header } from '../components/Header';
 import { FloatingActionBar } from '../components/FloatingActionBar';
 import { ToastContainer, showToast } from '../components/InlineToast';
 import { validateConnection } from '../utils/connectionValidation';
-import { autoLayout } from '../utils/autoLayout';
 import { Plus, ImageIcon, ZoomIn, ZoomOut } from 'lucide-react';
 
 /* ═══════════════════════════════════════════

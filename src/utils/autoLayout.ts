@@ -77,13 +77,7 @@ function getSpouseId(personId: string, ctx: LayoutContext): string | null {
     : bridge.data.fromId as string;
 }
 
-/** Get family bridge between two persons */
-function getFamilyBridge(a: string, b: string, ctx: LayoutContext): Node | undefined {
-  return ctx.familyNodes.find(n =>
-    (n.data.fromId === a && n.data.toId === b) ||
-    (n.data.fromId === b && n.data.toId === a)
-  );
-}
+
 
 /* ─── Main layout function ─── */
 export function autoLayout(nodes: Node[], edges: Edge[]): Node[] {
@@ -140,7 +134,6 @@ export function autoLayout(nodes: Node[], edges: Edge[]): Node[] {
 
   // Step 4: Position nodes — handle spouse pairs as units
   const positioned = new Map<string, { x: number; y: number }>();
-  const processed = new Set<string>();
 
   layers.forEach((layer, genIndex) => {
     const y = genIndex * CARD_H;

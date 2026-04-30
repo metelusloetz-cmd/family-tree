@@ -17,7 +17,7 @@ import type { Node, Edge } from '@xyflow/react';
  */
 
 /* ─── Helper: get all family bridge nodes a person is connected to as spouse ─── */
-function getSpouseBridges(personId: string, nodes: Node[], edges: Edge[]): Node[] {
+function getSpouseBridges(personId: string, nodes: Node[]): Node[] {
   return nodes.filter(n =>
     n.type === 'family' &&
     (n.data.fromId === personId || n.data.toId === personId)
@@ -71,7 +71,7 @@ function getChildrenIds(personId: string, nodes: Node[], edges: Edge[]): string[
   });
 
   // Children via family bridge
-  const bridges = getSpouseBridges(personId, nodes, edges);
+  const bridges = getSpouseBridges(personId, nodes);
   bridges.forEach(bridge => {
     edges.forEach(e => {
       if (e.source === bridge.id && e.sourceHandle === 'bottom') {

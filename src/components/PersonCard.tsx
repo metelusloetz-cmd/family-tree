@@ -1,4 +1,4 @@
-import { memo, useState, useCallback, useRef, useEffect } from 'react';
+import { memo, useState, useCallback, useRef } from 'react';
 import { Handle, Position } from '@xyflow/react';
 import { useTreeStore } from '../store/useTreeStore';
 import { Camera, Check, X } from 'lucide-react';
