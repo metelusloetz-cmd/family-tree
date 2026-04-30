@@ -25,31 +25,32 @@ export const SmartEdge = ({
   const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation();
 
-    // Remove just this one edge
-    const remainingEdges = edges.filter(e => e.id !== id);
-
-    // If the edge was connected to a family node and that node
-    // now has zero connections, clean it up too (orphan bridge)
     const sourceNode = nodes.find(n => n.id === source);
     const targetNode = nodes.find(n => n.id === target);
     const familyNode = sourceNode?.type === 'family' ? sourceNode
                      : targetNode?.type === 'family' ? targetNode
                      : null;
 
-    let remainingNodes = nodes;
     if (familyNode) {
-      const famId = familyNode.id;
-      const famStillConnected = remainingEdges.some(
-        e => e.source === famId || e.target === famId
-      );
-      // Only remove the family node if it has NO remaining connections at all
-      if (!famStillConnected) {
-        remainingNodes = nodes.filter(n => n.id !== famId);
-      }
-    }
+      // Spouse edge: person→family via left/right handle.
+      // Deleting it dissolves the whole family unit — children get unlinked too.
+      const isSpouseEdge =
+        (targetNode?.type === 'family') // person → family bridge
+        || (sourceNode?.type === 'family' && (sourceNode.data.fromId === target || sourceNode.data.toId === target));
 
-    setEdges(remainingEdges);
-    setNodes(remainingNodes);
+      if (isSpouseEdge) {
+        // Dissolve the entire family node + all its edges (children unlinked)
+        const famId = familyNode.id;
+        setEdges(edges.filter(e => e.source !== famId && e.target !== famId));
+        setNodes(nodes.filter(n => n.id !== famId));
+      } else {
+        // Parent→child edge: just remove this one line
+        setEdges(edges.filter(e => e.id !== id));
+      }
+    } else {
+      // Regular edge between two person nodes
+      setEdges(edges.filter(e => e.id !== id));
+    }
   };
 
   const baseWidth = style?.strokeWidth || 1;
