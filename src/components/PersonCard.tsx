@@ -1,4 +1,5 @@
-import { memo, useState, useCallback, useRef } from 'react';
+import { memo, useState, useCallback, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Handle, Position } from '@xyflow/react';
 import { useTreeStore } from '../store/useTreeStore';
 import { Camera, Check, X } from 'lucide-react';
@@ -79,18 +80,78 @@ export const PersonCard = memo(({ id, data, selected }: any) => {
   /* ═══════ EDIT MODE ═══════ */
   if (isEditing) {
     return (
-      <InlineEditCard
-        id={id}
-        data={data}
-        borderColor={borderColor}
-        bgLight={bgLight}
-        isFemale={isFemale}
-        handleStyle={handleStyle}
-        canAcceptParent={canAcceptParent}
-        hasSpouse={hasSpouse}
-        disabledHandleStyle={disabledHandleStyle}
-        onClose={() => editPerson(null)}
-      />
+      <>
+        {/* Keep the compact card visible under the modal */}
+        <div
+          onMouseEnter={() => setIsHovered(true)}
+          onMouseLeave={() => setIsHovered(false)}
+          style={{
+            display: 'flex', alignItems: 'center', gap: 10,
+            width: 168, padding: '10px 12px',
+            background: 'rgba(255,255,255,0.92)',
+            backdropFilter: 'blur(8px)',
+            borderRadius: 14,
+            border: `1.5px solid ${borderColor}`,
+            boxShadow: '0 8px 24px rgba(0,0,0,0.08)',
+            fontFamily: 'var(--font-family)',
+            position: 'relative',
+            opacity: isDead ? 0.65 : 1,
+          }}
+        >
+          <Handle type="target" position={Position.Top} id="top"
+            style={canAcceptParent ? handleStyle({ top: -6 }) : disabledHandleStyle({ top: -6 })}
+            isConnectable={canAcceptParent}
+          />
+          <Handle type="source" position={Position.Bottom} id="bottom" style={handleStyle({ bottom: -6 })} />
+          <Handle type="source" position={Position.Left} id="left"
+            style={!hasSpouse ? handleStyle({ left: -6 }) : disabledHandleStyle({ left: -6 })}
+            isConnectable={!hasSpouse}
+          />
+          <Handle type="target" position={Position.Left} id="left-target"
+            style={!hasSpouse ? handleStyle({ left: -6 }) : disabledHandleStyle({ left: -6 })}
+            isConnectable={!hasSpouse}
+          />
+          <Handle type="source" position={Position.Right} id="right"
+            style={!hasSpouse ? handleStyle({ right: -6 }) : disabledHandleStyle({ right: -6 })}
+            isConnectable={!hasSpouse}
+          />
+          <Handle type="target" position={Position.Right} id="right-target"
+            style={!hasSpouse ? handleStyle({ right: -6 }) : disabledHandleStyle({ right: -6 })}
+            isConnectable={!hasSpouse}
+          />
+          <div style={{
+            width: 54, height: 62, borderRadius: 6, flexShrink: 0, overflow: 'hidden',
+            background: data.photoUrl
+              ? `url(${data.photoUrl}) center/cover no-repeat`
+              : `linear-gradient(135deg, ${bgLight}, #f8fafc)`,
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+          }}>
+            {!data.photoUrl && (
+              <span style={{ fontSize: 15, fontWeight: 700, color: isFemale ? '#ec4899' : '#3b82f6', opacity: 0.7 }}>
+                {data.firstName?.[0]}{data.lastName?.[0]}
+              </span>
+            )}
+          </div>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            <div style={{ fontWeight: 600, fontSize: 12, lineHeight: 1.3, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{data.firstName}</div>
+            <div style={{ fontWeight: 600, fontSize: 12, lineHeight: 1.3, color: '#1e293b', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: 3 }}>{data.lastName}</div>
+            <div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 500 }}>{years}</div>
+          </div>
+        </div>
+        {/* Draggable edit form rendered in portal */}
+        <InlineEditCard
+          id={id}
+          data={data}
+          borderColor={borderColor}
+          bgLight={bgLight}
+          isFemale={isFemale}
+          handleStyle={handleStyle}
+          canAcceptParent={canAcceptParent}
+          hasSpouse={hasSpouse}
+          disabledHandleStyle={disabledHandleStyle}
+          onClose={() => editPerson(null)}
+        />
+      </>
     );
   }
 
@@ -249,6 +310,38 @@ function InlineEditCard({ id, data, borderColor, bgLight, isFemale, handleStyle,
   const { nodes, setNodes } = useTreeStore();
   const fileRef = useRef<HTMLInputElement>(null);
 
+  // Draggable position — start centered
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
+  const dragRef = useRef<{ startX: number; startY: number; originX: number; originY: number } | null>(null);
+
+  // Set initial centered position on mount
+  useEffect(() => {
+    setPos({
+      x: Math.round(window.innerWidth / 2 - 130),
+      y: Math.round(window.innerHeight / 2 - 220),
+    });
+  }, []);
+
+  const onMouseDown = (e: React.MouseEvent) => {
+    if ((e.target as HTMLElement).closest('input, button, textarea, select')) return;
+    e.preventDefault();
+    dragRef.current = { startX: e.clientX, startY: e.clientY, originX: pos!.x, originY: pos!.y };
+    const onMove = (ev: MouseEvent) => {
+      if (!dragRef.current) return;
+      setPos({
+        x: dragRef.current.originX + ev.clientX - dragRef.current.startX,
+        y: dragRef.current.originY + ev.clientY - dragRef.current.startY,
+      });
+    };
+    const onUp = () => {
+      dragRef.current = null;
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  };
+
   const [form, setForm] = useState({
     firstName: (data.firstName as string) || '',
     lastName: (data.lastName as string) || '',
@@ -301,19 +394,26 @@ function InlineEditCard({ id, data, borderColor, bgLight, isFemale, handleStyle,
 
   const accentColor = isFemale ? '#f472b6' : '#60a5fa';
 
-  return (
+  if (!pos) return null;
+
+  return createPortal(
     <div
-      className="nodrag"
+      onMouseDown={onMouseDown}
       style={{
+        position: 'fixed',
+        left: pos.x,
+        top: pos.y,
+        zIndex: 9999,
         width: 260,
         padding: 12,
-        background: 'rgba(255,255,255,0.95)',
-        backdropFilter: 'blur(8px)',
+        background: 'rgba(255,255,255,0.98)',
+        backdropFilter: 'blur(12px)',
         borderRadius: 14,
         border: `1.5px solid ${accentColor}`,
-        boxShadow: '0 8px 32px rgba(0,0,0,0.1)',
+        boxShadow: '0 16px 48px rgba(0,0,0,0.18)',
         fontFamily: 'var(--font-family)',
-        position: 'relative',
+        cursor: 'grab',
+        userSelect: 'none',
       }}
     >
       {/* Smart handles — same rules as compact mode */}
@@ -339,8 +439,8 @@ function InlineEditCard({ id, data, borderColor, bgLight, isFemale, handleStyle,
         isConnectable={!hasSpouse}
       />
 
-      {/* Photo + Gender row */}
-      <div style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center' }}>
+        {/* Photo + Gender row */}
+        <div style={{ display: 'flex', gap: 8, marginBottom: 8, alignItems: 'center' }}>
         {/* Photo */}
         <div
           onClick={() => fileRef.current?.click()}
@@ -446,7 +546,8 @@ function InlineEditCard({ id, data, borderColor, bgLight, isFemale, handleStyle,
           onCancel={() => setCropFile(null)}
         />
       )}
-    </div>
+    </div>,
+    document.body,
   );
 }
 
