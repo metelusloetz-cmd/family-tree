@@ -42,7 +42,7 @@ const zoomBtnStyle: React.CSSProperties = {
    TreeCanvasInner
    ═══════════════════════════════════════════ */
 const TreeCanvasInner = () => {
-  const { fitView, zoomIn, zoomOut } = useReactFlow();
+  const { fitView, zoomIn, zoomOut, screenToFlowPosition } = useReactFlow();
 
   const {
     nodes, edges, setNodes, setEdges,
@@ -293,17 +293,21 @@ const TreeCanvasInner = () => {
   // ─── Create new person ───
   const handleAddPerson = useCallback(() => {
     const id = `p_${Date.now()}`;
+    // Place card at center of visible viewport so it aligns with the edit form
+    const center = screenToFlowPosition({
+      x: window.innerWidth / 2,
+      y: window.innerHeight / 2,
+    });
     const newNode: Node = {
       id,
       type: 'person',
-      position: { x: Math.random() * 400 + 100, y: Math.random() * 300 + 100 },
+      position: center,
       data: { firstName: 'Новый', lastName: 'Человек', gender: 'M' },
       draggable: true,
     };
     setNodes([...nodes, newNode]);
     editPerson(id);
-    showToast('Создан — заполните данные', 'info');
-  }, [nodes, setNodes, editPerson]);
+  }, [nodes, setNodes, editPerson, screenToFlowPosition]);
 
   return (
     <div style={{
@@ -371,43 +375,19 @@ const TreeCanvasInner = () => {
           />
         </ReactFlow>
 
-        {/* Long-press connection tail overlay */}
-        {pendingConnection && (() => {
-          const { screenX, screenY, handleId } = pendingConnection;
-          const d = 48;
-          const tailEnd = handleId.startsWith('right') ? { x: screenX + d, y: screenY }
-                        : handleId.startsWith('left')  ? { x: screenX - d, y: screenY }
-                        : handleId === 'bottom'         ? { x: screenX, y: screenY + d }
-                        :                                 { x: screenX, y: screenY - d };
-          return (
-            <>
-              <svg style={{ position: 'fixed', inset: 0, width: '100vw', height: '100vh', zIndex: 998, pointerEvents: 'none' }}>
-                <defs>
-                  <style>{`@keyframes dash { to { stroke-dashoffset: -20; } }`}</style>
-                </defs>
-                <line
-                  x1={screenX} y1={screenY}
-                  x2={tailEnd.x} y2={tailEnd.y}
-                  stroke="var(--color-primary)" strokeWidth={2.5}
-                  strokeDasharray="6 4"
-                  style={{ animation: 'dash 0.4s linear infinite' }}
-                />
-                <circle cx={screenX} cy={screenY} r={7} fill="var(--color-primary)" opacity={0.85} />
-                <circle cx={tailEnd.x} cy={tailEnd.y} r={4} fill="var(--color-primary)" opacity={0.5} />
-              </svg>
-              {/* Tap-to-cancel hint */}
-              <div style={{
-                position: 'fixed', bottom: 90, left: '50%', transform: 'translateX(-50%)',
-                background: 'rgba(30,41,59,0.85)', color: '#fff',
-                padding: '8px 18px', borderRadius: 20, fontSize: 13,
-                zIndex: 999, pointerEvents: 'none',
-                backdropFilter: 'blur(6px)',
-              }}>
-                Нажмите на карточку для соединения &nbsp;·&nbsp; Нажмите на пустое место для отмены
-              </div>
-            </>
-          );
-        })()}
+        {/* Long-press connection mode hint */}
+        {pendingConnection && (
+          <div style={{
+            position: 'fixed', bottom: 90, left: '50%', transform: 'translateX(-50%)',
+            background: 'rgba(30,41,59,0.85)', color: '#fff',
+            padding: '8px 18px', borderRadius: 20, fontSize: 13,
+            zIndex: 999, pointerEvents: 'none',
+            backdropFilter: 'blur(6px)',
+            whiteSpace: 'nowrap',
+          }}>
+            Нажмите на карточку для соединения · Пустое место — отмена
+          </div>
+        )}
 
         {/* FloatingActionBar — edit + delete */}
         {selectedPersonId && !editingPersonId && !pendingConnection && (
@@ -425,9 +405,10 @@ const TreeCanvasInner = () => {
             onMouseDown={(e) => e.stopPropagation()}
             title="Добавить человека"
             style={{
-              position: 'absolute',
-              bottom: 24, right: 24,
-              width: 48, height: 48,
+              position: 'fixed',
+              bottom: 'calc(24px + env(safe-area-inset-bottom, 0px))',
+              right: 24,
+              width: 52, height: 52,
               borderRadius: '50%', border: 'none',
               background: 'var(--color-primary)',
               color: '#fff', cursor: 'pointer',
