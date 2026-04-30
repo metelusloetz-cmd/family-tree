@@ -115,7 +115,11 @@ export const useTreeStore = create<TreeState>()(
       },
 
       onNodesChange: (changes) => {
-        set({ nodes: applyNodeChanges(changes, get().nodes) });
+        // Block node removal via keyboard/ReactFlow built-in — deletion is only allowed via the FAB delete button
+        const filtered = changes.filter((c: any) => c.type !== 'remove');
+        if (filtered.length > 0) {
+          set({ nodes: applyNodeChanges(filtered, get().nodes) });
+        }
       },
 
       onEdgesChange: (changes) => {

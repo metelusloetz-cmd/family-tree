@@ -312,6 +312,7 @@ const TreeCanvasInner = () => {
           fitViewOptions={{ padding: 0.15 }}
           minZoom={0.1}
           maxZoom={2.5}
+          deleteKeyCode={null}
           connectionLineStyle={{ stroke: 'var(--color-primary)', strokeWidth: 1.5, strokeDasharray: '6 3' }}
           defaultEdgeOptions={{
             type: 'smart',
