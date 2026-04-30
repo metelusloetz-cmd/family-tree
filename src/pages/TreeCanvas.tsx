@@ -1,4 +1,4 @@
-import { useCallback, useRef, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import {
   ReactFlow, Background, BackgroundVariant, MiniMap,
   ReactFlowProvider, useReactFlow,
@@ -22,46 +22,8 @@ import { Plus, ImageIcon, ZoomIn, ZoomOut } from 'lucide-react';
 const nodeTypes = { person: PersonCard, family: FamilyBridge };
 const edgeTypes = { smart: SmartEdge };
 
-/* ═══════════════════════════════════════════
-   Demo data — Smirnov family (4 generations)
-   ═══════════════════════════════════════════ */
-const DEMO_NODES: Node[] = [
-  { id: '1', type: 'person', position: { x: 150, y: 0 }, data: { firstName: 'Александр', lastName: 'Смирнов', gender: 'M', birthDate: '1880', deathDate: '1954' }, draggable: true },
-  { id: 'f1', type: 'family', position: { x: 355, y: 34 }, data: { fromId: '1', toId: '2' }, draggable: true },
-  { id: '2', type: 'person', position: { x: 400, y: 0 }, data: { firstName: 'Мария', lastName: 'Смирнова', gender: 'F', birthDate: '1885', deathDate: '1962' }, draggable: true },
-  { id: '3', type: 'person', position: { x: 0, y: 180 }, data: { firstName: 'Сергей', lastName: 'Смирнов', gender: 'M', birthDate: '1908', deathDate: '1973' }, draggable: true },
-  { id: '4', type: 'person', position: { x: 200, y: 180 }, data: { firstName: 'Анна', lastName: 'Смирнова', gender: 'F', birthDate: '1910', deathDate: '1991' }, draggable: true },
-  { id: 'f2', type: 'family', position: { x: 175, y: 214 }, data: { fromId: '3', toId: '4' }, draggable: true },
-  { id: '5', type: 'person', position: { x: 400, y: 180 }, data: { firstName: 'Иван', lastName: 'Смирнов', gender: 'M', birthDate: '1920', deathDate: '1998' }, draggable: true },
-  { id: '6', type: 'person', position: { x: 580, y: 180 }, data: { firstName: 'Елена', lastName: 'Смирнова', gender: 'F', birthDate: '1922', deathDate: '2005' }, draggable: true },
-  { id: 'f3', type: 'family', position: { x: 565, y: 214 }, data: { fromId: '5', toId: '6' }, draggable: true },
-  { id: '7', type: 'person', position: { x: 50, y: 360 }, data: { firstName: 'Дмитрий', lastName: 'Смирнов', gender: 'M', birthDate: '1945' }, draggable: true },
-  { id: '8', type: 'person', position: { x: 250, y: 360 }, data: { firstName: 'Ольга', lastName: 'Смирнова', gender: 'F', birthDate: '1948' }, draggable: true },
-  { id: '9', type: 'person', position: { x: 450, y: 360 }, data: { firstName: 'Татьяна', lastName: 'Смирнова', gender: 'F', birthDate: '1950' }, draggable: true },
-  { id: '10', type: 'person', position: { x: 650, y: 360 }, data: { firstName: 'Виктор', lastName: 'Смирнов', gender: 'M', birthDate: '1952' }, draggable: true },
-  { id: '11', type: 'person', position: { x: 100, y: 540 }, data: { firstName: 'Алексей', lastName: 'Смирнов', gender: 'M', birthDate: '1975' }, draggable: true },
-  { id: '12', type: 'person', position: { x: 500, y: 540 }, data: { firstName: 'Екатерина', lastName: 'Смирнова', gender: 'F', birthDate: '1980' }, draggable: true },
-];
-
 // Neutral edge style — no color noise, 15% transparent
 const EDGE_STYLE = { stroke: 'rgba(148,163,184,0.85)', strokeWidth: 1 };
-
-const DEMO_EDGES: Edge[] = [
-  { id: 'e_f1_m', source: '1', sourceHandle: 'right', target: 'f1', targetHandle: 'left', type: 'smart', style: EDGE_STYLE },
-  { id: 'e_f1_f', source: '2', sourceHandle: 'left', target: 'f1', targetHandle: 'right', type: 'smart', style: EDGE_STYLE },
-  { id: 'e_f1_c3', source: 'f1', sourceHandle: 'bottom', target: '3', targetHandle: 'top', type: 'smart', style: EDGE_STYLE },
-  { id: 'e_f1_c5', source: 'f1', sourceHandle: 'bottom', target: '5', targetHandle: 'top', type: 'smart', style: EDGE_STYLE },
-  { id: 'e_f2_m', source: '3', sourceHandle: 'right', target: 'f2', targetHandle: 'left', type: 'smart', style: EDGE_STYLE },
-  { id: 'e_f2_f', source: '4', sourceHandle: 'left', target: 'f2', targetHandle: 'right', type: 'smart', style: EDGE_STYLE },
-  { id: 'e_f3_m', source: '5', sourceHandle: 'right', target: 'f3', targetHandle: 'left', type: 'smart', style: EDGE_STYLE },
-  { id: 'e_f3_f', source: '6', sourceHandle: 'left', target: 'f3', targetHandle: 'right', type: 'smart', style: EDGE_STYLE },
-  { id: 'e_f2_c7', source: 'f2', sourceHandle: 'bottom', target: '7', targetHandle: 'top', type: 'smart', style: EDGE_STYLE },
-  { id: 'e_f2_c8', source: 'f2', sourceHandle: 'bottom', target: '8', targetHandle: 'top', type: 'smart', style: EDGE_STYLE },
-  { id: 'e_f3_c9', source: 'f3', sourceHandle: 'bottom', target: '9', targetHandle: 'top', type: 'smart', style: EDGE_STYLE },
-  { id: 'e_f3_c10', source: 'f3', sourceHandle: 'bottom', target: '10', targetHandle: 'top', type: 'smart', style: EDGE_STYLE },
-  { id: 'e_7_11', source: '7', sourceHandle: 'bottom', target: '11', targetHandle: 'top', type: 'smart', style: EDGE_STYLE },
-  { id: 'e_9_12', source: '9', sourceHandle: 'bottom', target: '12', targetHandle: 'top', type: 'smart', style: EDGE_STYLE },
-];
 
 /* ═══════════════════════════════════════════
    Zoom button style
@@ -80,11 +42,9 @@ const zoomBtnStyle: React.CSSProperties = {
    TreeCanvasInner
    ═══════════════════════════════════════════ */
 const TreeCanvasInner = () => {
-  const initialized = useRef(false);
   const { fitView, zoomIn, zoomOut } = useReactFlow();
 
   const {
-    _hasHydrated,
     nodes, edges, setNodes, setEdges,
     onNodesChange, onEdgesChange,
     selectedPersonId, selectPerson,
@@ -96,16 +56,7 @@ const TreeCanvasInner = () => {
     x: number; y: number; width: number; height: number;
   } | null>(null);
 
-  // ─── Initialize demo data ───
-  useEffect(() => {
-    if (!_hasHydrated) return;
-    if (initialized.current) return;
-    initialized.current = true;
-    if (useTreeStore.getState().nodes.length === 0) {
-      setNodes(DEMO_NODES);
-      setEdges(DEMO_EDGES);
-    }
-  }, [_hasHydrated, setNodes, setEdges]);
+  // No demo data initialization — start fresh
 
   // ─── Update card rect ───
   const updateCardRect = useCallback(() => {
