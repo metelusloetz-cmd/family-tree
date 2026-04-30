@@ -25,24 +25,31 @@ export const SmartEdge = ({
   const handleDelete = (e: React.MouseEvent) => {
     e.stopPropagation();
 
-    // Check if this edge connects to a family (marriage) node
+    // Remove just this one edge
+    const remainingEdges = edges.filter(e => e.id !== id);
+
+    // If the edge was connected to a family node and that node
+    // now has zero connections, clean it up too (orphan bridge)
     const sourceNode = nodes.find(n => n.id === source);
     const targetNode = nodes.find(n => n.id === target);
     const familyNode = sourceNode?.type === 'family' ? sourceNode
                      : targetNode?.type === 'family' ? targetNode
                      : null;
 
+    let remainingNodes = nodes;
     if (familyNode) {
       const famId = familyNode.id;
-      // Remove ALL edges connected to this family node + the family node itself
-      setEdges(edges.filter(e =>
-        e.source !== famId && e.target !== famId
-      ));
-      setNodes(nodes.filter(n => n.id !== famId));
-    } else {
-      // Simple edge — just remove it
-      setEdges(edges.filter(e => e.id !== id));
+      const famStillConnected = remainingEdges.some(
+        e => e.source === famId || e.target === famId
+      );
+      // Only remove the family node if it has NO remaining connections at all
+      if (!famStillConnected) {
+        remainingNodes = nodes.filter(n => n.id !== famId);
+      }
     }
+
+    setEdges(remainingEdges);
+    setNodes(remainingNodes);
   };
 
   const baseWidth = style?.strokeWidth || 1;
