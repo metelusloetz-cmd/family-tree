@@ -95,7 +95,12 @@ export const PersonCard = memo(({ id, data, selected }: any) => {
   // Does this node have any outgoing edges (i.e. children or family bridges with children)?
   const hasDescendants = edges.some(e => e.source === id);
 
-  const years = [data.birthDate, data.deathDate].filter(Boolean).join('–') || '';
+  // Extract 4-digit year from any date format (DD.MM.YYYY, YYYY, etc.)
+  const toYear = (s: string) => s?.match(/(\d{4})/)?.[1] ?? s;
+  const years = [
+    data.birthDate ? toYear(data.birthDate) : null,
+    data.deathDate ? toYear(data.deathDate) : null,
+  ].filter(Boolean).join('–') || '';
   const borderColor = isMale ? 'var(--color-male)' : isFemale ? 'var(--color-female)' : 'var(--color-border)';
 
   const showHandles = isHovered || selected || isSourceCard || !!pendingConnection;
