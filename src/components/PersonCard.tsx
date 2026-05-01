@@ -6,6 +6,7 @@ import { Camera, Check, X, Users } from 'lucide-react';
 import { SmartDateInput } from './SmartDateInput';
 import { ImageCropper } from './ImageCropper';
 import { showToast } from './InlineToast';
+import { ProfilePanel } from './ProfilePanel';
 
 /**
  * PersonCard — compact card that expands inline for editing.
@@ -23,6 +24,10 @@ export const PersonCard = memo(({ id, data, selected }: any) => {
   const editingPersonId = useTreeStore(s => s.editingPersonId);
   const editPerson = useTreeStore(s => s.editPerson);
   const isEditing = editingPersonId === id;
+
+  const profilePersonId = useTreeStore(s => s.profilePersonId);
+  const openProfile = useTreeStore(s => s.openProfile);
+  const isProfileOpen = profilePersonId === id;
 
   const collapsedNodes = useTreeStore(s => s.collapsedNodes);
   const toggleCollapse = useTreeStore(s => s.toggleCollapse);
@@ -201,9 +206,11 @@ export const PersonCard = memo(({ id, data, selected }: any) => {
 
   /* ═══════ COMPACT MODE ═══════ */
   return (
+    <>
     <div
       onMouseEnter={() => setIsHovered(true)}
       onMouseLeave={() => setIsHovered(false)}
+      onDoubleClick={() => openProfile(id)}
       style={{
         display: 'flex',
         alignItems: 'center',
@@ -326,6 +333,9 @@ export const PersonCard = memo(({ id, data, selected }: any) => {
         </button>
       </div>
     </div>
+    {/* Profile panel portal — double-click opens this */}
+    {isProfileOpen && <ProfilePanel id={id} data={data} />}
+    </>
   );
 });
 

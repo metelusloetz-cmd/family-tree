@@ -67,6 +67,11 @@ interface TreeState {
   pendingConnection: { nodeId: string; handleId: string; screenX: number; screenY: number } | null;
   startPendingConnection: (info: { nodeId: string; handleId: string; screenX: number; screenY: number }) => void;
   cancelPendingConnection: () => void;
+
+  /* Full profile panel */
+  profilePersonId: string | null;
+  openProfile: (id: string) => void;
+  closeProfile: () => void;
 }
 
 /* ─── Visibility helper for collapsed branches ─── */
@@ -147,6 +152,10 @@ export const useTreeStore = create<TreeState>()(
       pendingConnection: null,
       startPendingConnection: (info) => set({ pendingConnection: info }),
       cancelPendingConnection: () => set({ pendingConnection: null }),
+
+      profilePersonId: null,
+      openProfile: (id) => set({ profilePersonId: id, editingPersonId: null }),
+      closeProfile: () => set({ profilePersonId: null }),
 
       toggleCollapse: (id) => {
         const { collapsedNodes, nodes, edges } = get();
