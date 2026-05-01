@@ -901,25 +901,83 @@ function ExpandedSocials({ form, setForm }: { form: any; setForm: any }) {
 }
 
 /* ── AI voice section ── */
-const SpeechRec: any = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+
+// Pick the best supported audio MIME type for MediaRecorder
+function getBestMime(): string {
+  const types = ['audio/webm;codecs=opus', 'audio/webm', 'audio/mp4', 'audio/ogg'];
+  return types.find(t => MediaRecorder.isTypeSupported(t)) ?? '';
+}
 
 function ExpandedAI({ setForm }: { form?: any; setForm: any }) {
   const [transcript, setTranscript] = useState('');
   const [isRecording, setIsRecording] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
-  const recRef = useRef<any>(null);
+  const recorderRef = useRef<MediaRecorder | null>(null);
+  const chunksRef = useRef<Blob[]>([]);
 
-  const start = () => {
-    if (!SpeechRec) { showToast('Голосовой ввод не поддерживается', 'error'); return; }
-    const r = new SpeechRec();
-    r.lang = 'ru-RU'; r.continuous = false; r.interimResults = true;
-    r.onresult = (e: any) => setTranscript(Array.from(e.results as any[]).map((x: any) => x[0].transcript).join(''));
-    r.onend = () => setIsRecording(false);
-    r.onerror = () => { setIsRecording(false); showToast('Ошибка микрофона', 'error'); };
-    recRef.current = r; r.start(); setIsRecording(true);
+  // Stop all mic tracks on unmount
+  useEffect(() => () => { recorderRef.current?.stop(); }, []);
+
+  const startRecording = async () => {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const mime = getBestMime();
+      const recorder = new MediaRecorder(stream, mime ? { mimeType: mime } : undefined);
+      chunksRef.current = [];
+
+      recorder.ondataavailable = (e) => {
+        if (e.data.size > 0) chunksRef.current.push(e.data);
+      };
+
+      recorder.onstop = async () => {
+        // Release mic
+        stream.getTracks().forEach(t => t.stop());
+        // Transcribe via Whisper
+        const blob = new Blob(chunksRef.current, { type: mime || 'audio/webm' });
+        await transcribeAudio(blob);
+      };
+
+      recorder.start(200); // collect data every 200ms
+      recorderRef.current = recorder;
+      setIsRecording(true);
+    } catch {
+      showToast('Нет доступа к микрофону', 'error');
+    }
   };
-  const stop = () => { recRef.current?.stop(); setIsRecording(false); };
-  useEffect(() => () => recRef.current?.stop(), []);
+
+  const stopRecording = () => {
+    recorderRef.current?.stop();
+    setIsRecording(false);
+  };
+
+  const transcribeAudio = async (blob: Blob) => {
+    setIsProcessing(true);
+    try {
+      const fd = new FormData();
+      // Whisper needs a filename with extension to detect format
+      const ext = blob.type.includes('mp4') ? 'mp4' : blob.type.includes('ogg') ? 'ogg' : 'webm';
+      fd.append('file', blob, `voice.${ext}`);
+      fd.append('model', 'whisper-1');
+      fd.append('language', 'ru');
+
+      const res = await fetch('https://api.aitunnel.ru/v1/audio/transcriptions', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${import.meta.env.VITE_AI_KEY}` },
+        body: fd,
+      });
+
+      if (!res.ok) throw new Error(`Whisper error ${res.status}`);
+      const json = await res.json();
+      const text: string = json.text ?? '';
+      if (!text.trim()) { showToast('Не удалось распознать речь', 'warning'); return; }
+      setTranscript(text);
+    } catch (err) {
+      console.error('Whisper transcription failed:', err);
+      showToast('Ошибка распознавания', 'error');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
 
   const applyAI = async () => {
     if (!transcript.trim()) return;
@@ -938,37 +996,69 @@ function ExpandedAI({ setForm }: { form?: any; setForm: any }) {
         occupation: info.occupation ?? f.occupation,
         education: info.education ?? f.education,
         bio: info.bio ?? f.bio,
-        events: info.events ? [...f.events, ...info.events.map((e: any) => ({ id: `${Date.now()}_${e.year}`, ...e }))].sort((a: any, b: any) => a.year.localeCompare(b.year)) : f.events,
+        events: info.events
+          ? [...f.events, ...info.events.map((e: any) => ({ id: `${Date.now()}_${e.year}`, ...e }))]
+              .sort((a: any, b: any) => a.year.localeCompare(b.year))
+          : f.events,
         socials: { ...f.socials, ...(info.socials ?? {}) },
       }));
       setTranscript('');
       showToast('ИИ заполнил поля', 'success');
     } catch {
       showToast('Ошибка ИИ', 'error');
-    } finally { setIsProcessing(false); }
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   return (
     <div style={{ marginBottom: 6 }}>
       <label style={{ display: 'block', fontSize: 8, fontWeight: 700, color: 'var(--color-text-muted)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.6 }}>🎤 ИИ Помощник</label>
-      <button onClick={isRecording ? stop : start} className="nodrag nopan"
-        style={{ width: '100%', height: 32, borderRadius: 8, border: 'none', cursor: 'pointer',
-          background: isRecording ? '#ef4444' : '#6366f1', color: '#fff', fontWeight: 600, fontSize: 12,
-          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontFamily: 'var(--font-family)',
-          animation: isRecording ? 'pulse 1s infinite' : 'none' }}>
-        {isRecording ? <><MicOff size={13} /> Остановить</> : <><Mic size={13} /> Наговорить голосом</>}
+
+      <button
+        onClick={isRecording ? stopRecording : startRecording}
+        disabled={isProcessing}
+        className="nodrag nopan"
+        style={{
+          width: '100%', height: 40, borderRadius: 10, border: 'none', cursor: 'pointer',
+          background: isRecording ? '#ef4444' : '#6366f1', color: '#fff', fontWeight: 700, fontSize: 13,
+          display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+          fontFamily: 'var(--font-family)',
+          boxShadow: isRecording ? '0 0 0 4px rgba(239,68,68,0.25)' : '0 2px 8px rgba(99,102,241,0.3)',
+          transition: 'background 0.2s, box-shadow 0.2s',
+          opacity: isProcessing ? 0.6 : 1,
+        }}
+      >
+        {isRecording
+          ? <><MicOff size={15} /> Остановить запись</>
+          : isProcessing
+            ? <><Loader2 size={15} style={{ animation: 'spin 1s linear infinite' }} /> Распознавание…</>
+            : <><Mic size={15} /> Наговорить голосом</>
+        }
       </button>
-      {transcript && (
+
+      {isRecording && (
+        <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 6, color: '#ef4444', fontSize: 11 }}>
+          <div style={{ width: 7, height: 7, borderRadius: '50%', background: '#ef4444', animation: 'pulse 1s infinite' }} />
+          Запись идёт… нажмите «Остановить» когда закончите
+        </div>
+      )}
+
+      {transcript && !isProcessing && (
         <>
-          <textarea className="nodrag nopan nowheel" rows={2} value={transcript} onChange={e => setTranscript(e.target.value)}
-            style={{ width: '100%', marginTop: 4, border: '1px solid #e2e8f0', borderRadius: 6, padding: '6px 8px', fontSize: 12, fontFamily: 'var(--font-family)', resize: 'none', outline: 'none', boxSizing: 'border-box', lineHeight: 1.5 }} />
-          <button onClick={applyAI} disabled={isProcessing} className="nodrag nopan"
-            style={{ width: '100%', height: 28, marginTop: 4, borderRadius: 6, border: 'none', background: '#6366f1', color: '#fff', cursor: 'pointer', fontSize: 11, fontFamily: 'var(--font-family)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 4, opacity: isProcessing ? 0.7 : 1 }}>
-            {isProcessing ? <><Loader2 size={11} style={{ animation: 'spin 1s linear infinite' }} /> Обработка…</> : <><Sparkles size={11} /> Заполнить из текста</>}
+          <textarea
+            className="nodrag nopan nowheel" rows={3} value={transcript}
+            onChange={e => setTranscript(e.target.value)}
+            style={{ width: '100%', marginTop: 8, border: '1px solid #e2e8f0', borderRadius: 8, padding: '8px 10px', fontSize: 12, fontFamily: 'var(--font-family)', resize: 'none', outline: 'none', boxSizing: 'border-box', lineHeight: 1.6 }}
+          />
+          <button onClick={applyAI} className="nodrag nopan"
+            style={{ width: '100%', height: 32, marginTop: 6, borderRadius: 8, border: 'none', background: '#6366f1', color: '#fff', cursor: 'pointer', fontSize: 12, fontFamily: 'var(--font-family)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6, fontWeight: 600 }}>
+            <Sparkles size={13} /> Заполнить из текста
           </button>
         </>
       )}
-      <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:.7}} @keyframes spin{to{transform:rotate(360deg)}}`}</style>
+
+      <style>{`@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}} @keyframes spin{to{transform:rotate(360deg)}}`}</style>
     </div>
   );
 }
