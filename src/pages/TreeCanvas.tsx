@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useState } from 'react';
 import {
   ReactFlow, Background, BackgroundVariant, MiniMap,
   ReactFlowProvider, useReactFlow,
@@ -11,7 +11,6 @@ import { PersonCard } from '../components/PersonCard';
 import { FamilyBridge } from '../components/FamilyBridge';
 import { SmartEdge } from '../components/SmartEdge';
 import { Header } from '../components/Header';
-import { FloatingActionBar } from '../components/FloatingActionBar';
 import { ToastContainer, showToast } from '../components/InlineToast';
 import { validateConnection } from '../utils/connectionValidation';
 import { Plus, ImageIcon, ZoomIn, ZoomOut } from 'lucide-react';
@@ -45,39 +44,19 @@ const TreeCanvasInner = () => {
   const { fitView, zoomIn, zoomOut, screenToFlowPosition } = useReactFlow();
 
   const {
-    nodes, edges, setNodes, setEdges,
+    nodes, edges, setNodes,
     onNodesChange, onEdgesChange,
-    selectedPersonId, selectPerson,
+    selectPerson,
     editingPersonId, editPerson,
     backgroundImage, setBackgroundImage,
     pendingConnection, cancelPendingConnection,
   } = useTreeStore();
-
-  const [selectedCardRect, setSelectedCardRect] = useState<{
-    x: number; y: number; width: number; height: number;
-  } | null>(null);
 
   // Blocks canvas panning while a connection handle is being dragged (critical for mobile)
   const [isConnecting, setIsConnecting] = useState(false);
   const handleConnectStart = useCallback(() => setIsConnecting(true), []);
   const handleConnectEnd = useCallback(() => setIsConnecting(false), []);
 
-  // No demo data initialization — start fresh
-
-  // ─── Update card rect ───
-  const updateCardRect = useCallback(() => {
-    if (!selectedPersonId || editingPersonId) {
-      setSelectedCardRect(null);
-      return;
-    }
-    const el = document.querySelector(`[data-id="${selectedPersonId}"]`);
-    if (el) {
-      const rect = el.getBoundingClientRect();
-      setSelectedCardRect({ x: rect.x, y: rect.y, width: rect.width, height: rect.height });
-    }
-  }, [selectedPersonId, editingPersonId]);
-
-  useEffect(() => { updateCardRect(); }, [selectedPersonId, editingPersonId, updateCardRect]);
 
   // ─── Drag: reposition family bridges + fix edge handles ───
   const handleNodeDrag = useCallback((_e: any, draggedNode: Node) => {
@@ -150,8 +129,8 @@ const TreeCanvasInner = () => {
 
     if (nodesChanged) storeSetNodes(updatedNodes);
     if (edgesChanged) storeSetEdges(updatedEdges);
-    if (draggedNode.id === selectedPersonId) updateCardRect();
-  }, [selectedPersonId, updateCardRect]);
+  }, []);
+
 
   // ─── Native React Flow connection: drag handle → handle ───
   // Uses getState() to always read fresh data, avoiding stale closure bugs
@@ -267,28 +246,9 @@ const TreeCanvasInner = () => {
     showToast('Вписано в экран', 'info');
   }, [fitView]);
 
-  const handleMoveEnd = useCallback(() => { updateCardRect(); }, [updateCardRect]);
+  const handleMoveEnd = useCallback(() => {}, []);
 
-  // ─── FAB actions ───
-  const handleEditFromBar = useCallback(() => {
-    if (selectedPersonId) editPerson(selectedPersonId);
-  }, [selectedPersonId, editPerson]);
 
-  const handleDeleteFromBar = useCallback(() => {
-    if (!selectedPersonId) return;
-    const id = selectedPersonId;
-    const connFam = nodes.filter(n =>
-      n.type === 'family' && (n.data.fromId === id || n.data.toId === id)
-    );
-    const famIds = new Set(connFam.map(n => n.id));
-    setEdges(edges.filter(e =>
-      e.source !== id && e.target !== id &&
-      !famIds.has(e.source) && !famIds.has(e.target)
-    ));
-    setNodes(nodes.filter(n => n.id !== id && !famIds.has(n.id)));
-    selectPerson(null);
-    showToast('Удалено', 'info');
-  }, [selectedPersonId, nodes, edges, setNodes, setEdges, selectPerson]);
 
   // ─── Create new person ───
   const handleAddPerson = useCallback(() => {
@@ -389,14 +349,6 @@ const TreeCanvasInner = () => {
           </div>
         )}
 
-        {/* FloatingActionBar — edit + delete */}
-        {selectedPersonId && !editingPersonId && !pendingConnection && (
-          <FloatingActionBar
-            cardRect={selectedCardRect}
-            onEdit={handleEditFromBar}
-            onDelete={handleDeleteFromBar}
-          />
-        )}
 
         {/* FAB — Add person */}
         {!editingPersonId && (
