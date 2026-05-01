@@ -2,7 +2,7 @@ import { memo, useState, useCallback, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { Handle, Position } from '@xyflow/react';
 import { useTreeStore } from '../store/useTreeStore';
-import { Camera, Check, X } from 'lucide-react';
+import { Camera, Check, X, Users } from 'lucide-react';
 import { SmartDateInput } from './SmartDateInput';
 import { ImageCropper } from './ImageCropper';
 import { showToast } from './InlineToast';
@@ -23,6 +23,10 @@ export const PersonCard = memo(({ id, data, selected }: any) => {
   const editingPersonId = useTreeStore(s => s.editingPersonId);
   const editPerson = useTreeStore(s => s.editPerson);
   const isEditing = editingPersonId === id;
+
+  const collapsedNodes = useTreeStore(s => s.collapsedNodes);
+  const toggleCollapse = useTreeStore(s => s.toggleCollapse);
+  const isCollapsed = collapsedNodes.has(id);
 
   const pendingConnection = useTreeStore(s => s.pendingConnection);
   const startPendingConnection = useTreeStore(s => s.startPendingConnection);
@@ -80,6 +84,9 @@ export const PersonCard = memo(({ id, data, selected }: any) => {
     return count;
   }, 0);
   const canAcceptParent = parentCount < 2;
+
+  // Does this node have any outgoing edges (i.e. children or family bridges with children)?
+  const hasDescendants = edges.some(e => e.source === id);
 
   const years = [data.birthDate, data.deathDate].filter(Boolean).join('–') || '';
   const borderColor = isMale ? 'var(--color-male)' : isFemale ? 'var(--color-female)' : 'var(--color-border)';
@@ -293,11 +300,30 @@ export const PersonCard = memo(({ id, data, selected }: any) => {
         }}>
           {data.lastName}
         </div>
-        <div style={{
-          fontSize: 10, color: '#94a3b8', fontWeight: 500,
-        }}>
+        <div style={{ fontSize: 10, color: '#94a3b8', fontWeight: 500 }}>
           {years}
         </div>
+        {/* Collapse toggle */}
+        <button
+          className="nodrag nopan"
+          onClick={(e) => { e.stopPropagation(); if (hasDescendants) toggleCollapse(id); }}
+          title={isCollapsed ? 'Развернуть потомков' : 'Свернуть потомков'}
+          style={{
+            marginTop: 4,
+            background: 'none', border: 'none', padding: 0,
+            cursor: hasDescendants ? 'pointer' : 'default',
+            display: 'flex', alignItems: 'center',
+            color: hasDescendants
+              ? (isCollapsed ? accentColor : '#94a3b8')
+              : '#d1d5db',
+            transition: 'color 0.2s',
+          }}
+        >
+          <Users size={14} strokeWidth={2} />
+          {isCollapsed && hasDescendants && (
+            <span style={{ fontSize: 9, fontWeight: 700, marginLeft: 2, color: accentColor }}>+</span>
+          )}
+        </button>
       </div>
     </div>
   );
