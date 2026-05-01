@@ -7,6 +7,10 @@ import { useTreeStore } from '../store/useTreeStore';
  * ProfilePanel — read-only view of a person's profile.
  * Shows only filled fields. Carousel of slideshow photos.
  * Opened by clicking the 👁 icon on the compact card.
+ *
+ * IMPORTANT: rendered via portal to document.body. React still bubbles
+ * events through the component tree, so we must stopPropagation on the
+ * outer container to prevent clicks reaching the ReactFlow card below.
  */
 
 const SOCIAL_META: Record<string, { label: string; icon: string; color: string }> = {
@@ -17,8 +21,8 @@ const SOCIAL_META: Record<string, { label: string; icon: string; color: string }
   link:      { label: 'Ссылка',     icon: '🔗', color: '#6366f1' },
 };
 
-export const ProfilePanel = ({ id, data }: { id: string; data: any }) => {
-  const { closeProfile, editPerson } = useTreeStore();
+export const ProfilePanel = ({ data }: { id: string; data: any }) => {
+  const { closeProfile } = useTreeStore();
   const [photoIdx, setPhotoIdx] = useState(0);
 
   /* ── Drag ── */
@@ -29,6 +33,7 @@ export const ProfilePanel = ({ id, data }: { id: string; data: any }) => {
   });
 
   const onDragStart = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
     dragState.current = { sx: e.clientX, sy: e.clientY, ox: pos.x, oy: pos.y };
     const move = (ev: MouseEvent) => {
       if (!dragState.current) return;
@@ -74,8 +79,15 @@ export const ProfilePanel = ({ id, data }: { id: string; data: any }) => {
     fontSize: 11, color: '#94a3b8', minWidth: 56, flexShrink: 0,
   };
 
+  /* Stop ALL events from bubbling into the ReactFlow layer below */
+  const stopAll = (e: React.SyntheticEvent) => e.stopPropagation();
+
   return createPortal(
     <div
+      onClick={stopAll}
+      onDoubleClick={stopAll}
+      onMouseDown={stopAll}
+      onPointerDown={stopAll}
       style={{
         position: 'fixed', left: pos.x, top: pos.y, zIndex: 200,
         width: 300, maxHeight: '82vh',
@@ -105,7 +117,7 @@ export const ProfilePanel = ({ id, data }: { id: string; data: any }) => {
             </div>
           )}
         </div>
-        <button onClick={closeProfile}
+        <button onClick={(e) => { e.stopPropagation(); closeProfile(); }}
           style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#94a3b8', padding: 4 }}>
           <X size={17} />
         </button>
@@ -114,7 +126,7 @@ export const ProfilePanel = ({ id, data }: { id: string; data: any }) => {
       {/* ── Scrollable body ── */}
       <div style={{ overflowY: 'auto', padding: '0 14px 14px', flex: 1 }}>
 
-        {/* Avatar + name row */}
+        {/* Avatar + occupation row */}
         {data.photoUrl && (
           <div style={{ display: 'flex', gap: 10, alignItems: 'flex-start', margin: '12px 0 4px' }}>
             <img src={data.photoUrl} alt={name}
@@ -128,19 +140,26 @@ export const ProfilePanel = ({ id, data }: { id: string; data: any }) => {
 
         {/* Slideshow carousel */}
         {slides.length > 0 && (
-          <div style={{ margin: '8px 0', position: 'relative', borderRadius: 10, overflow: 'hidden' }}>
+          <div style={{ margin: '8px 0', position: 'relative', borderRadius: 10, overflow: 'hidden', userSelect: 'none' }}>
             <img src={slides[photoIdx]} alt=""
               style={{ width: '100%', height: 148, objectFit: 'cover', display: 'block' }} />
             {slides.length > 1 && (
               <>
-                <button onClick={() => setPhotoIdx(i => Math.max(0, i - 1))}
-                  style={{ position: 'absolute', left: 6, top: '50%', transform: 'translateY(-50%)', background: 'rgba(0,0,0,0.4)', border: 'none', borderRadius: '50%', width: 26, height: 26, color: '#fff', cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>‹</button>
-                <button onClick={() => setPhotoIdx(i => Math.min(slides.length - 1, i + 1))}
-                  style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', background: 'rgba(0,0,0,0.4)', border: 'none', borderRadius: '50%', width: 26, height: 26, color: '#fff', cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>›</button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); setPhotoIdx(i => Math.max(0, i - 1)); }}
+                  style={{ position: 'absolute', left: 6, top: '50%', transform: 'translateY(-50%)', background: 'rgba(0,0,0,0.4)', border: 'none', borderRadius: '50%', width: 26, height: 26, color: '#fff', cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  ‹
+                </button>
+                <button
+                  onClick={(e) => { e.stopPropagation(); setPhotoIdx(i => Math.min(slides.length - 1, i + 1)); }}
+                  style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', background: 'rgba(0,0,0,0.4)', border: 'none', borderRadius: '50%', width: 26, height: 26, color: '#fff', cursor: 'pointer', fontSize: 14, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  ›
+                </button>
                 {/* Dots */}
                 <div style={{ position: 'absolute', bottom: 6, left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: 4 }}>
                   {slides.map((_, i) => (
-                    <div key={i} onClick={() => setPhotoIdx(i)}
+                    <div key={i}
+                      onClick={(e) => { e.stopPropagation(); setPhotoIdx(i); }}
                       style={{ width: i === photoIdx ? 14 : 5, height: 5, borderRadius: 3, background: i === photoIdx ? '#fff' : 'rgba(255,255,255,0.5)', cursor: 'pointer', transition: 'width 0.2s' }} />
                   ))}
                 </div>
@@ -211,6 +230,7 @@ export const ProfilePanel = ({ id, data }: { id: string; data: any }) => {
                 return (
                   <a key={key} href={url.startsWith('http') ? url : `https://${url}`}
                     target="_blank" rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
                     style={{
                       display: 'flex', alignItems: 'center', gap: 4,
                       padding: '4px 10px', borderRadius: 20,
@@ -226,20 +246,6 @@ export const ProfilePanel = ({ id, data }: { id: string; data: any }) => {
             </div>
           </>
         )}
-      </div>
-
-      {/* ── Footer ── */}
-      <div style={{ padding: '10px 14px', borderTop: '1px solid #f1f5f9', flexShrink: 0 }}>
-        <button
-          onClick={() => { closeProfile(); editPerson(id); }}
-          style={{
-            width: '100%', height: 36, borderRadius: 10, border: 'none',
-            background: '#6366f1', color: '#fff', cursor: 'pointer',
-            fontWeight: 600, fontSize: 13, fontFamily: 'var(--font-family)',
-          }}
-        >
-          ✏️ Редактировать
-        </button>
       </div>
     </div>,
     document.body,

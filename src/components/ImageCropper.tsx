@@ -10,7 +10,7 @@ import Cropper from 'react-easy-crop';
 
 const DIMS = {
   avatar: { w: 200, h: 240 },
-  slide:  { w: 320, h: 180 },
+  slide:  { w: 960, h: 540 },  // 16:9, ~3x avatar size
 };
 
 const createImage = (url: string): Promise<HTMLImageElement> =>
