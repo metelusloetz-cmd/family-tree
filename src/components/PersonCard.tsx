@@ -424,19 +424,28 @@ function InlineEditCard({ id, data, borderColor, bgLight, isFemale, handleStyle,
   const fileRef = useRef<HTMLInputElement>(null);
   const [expanded, setExpanded] = useState(false);
 
-  // Draggable position — start centered
-  const [pos, setPos] = useState<{ x: number; y: number } | null>(null);
+  // Mobile detection (touch device)
+  const isMobile = 'ontouchstart' in window || navigator.maxTouchPoints > 1;
+
+  // Draggable position — desktop only, start centered
+  const [pos, setPos] = useState<{ x: number; y: number } | null>(
+    isMobile ? { x: 0, y: 0 } : null,
+  );
   const dragRef = useRef<{ startX: number; startY: number; originX: number; originY: number } | null>(null);
 
-  // Set initial centered position on mount
+  // Desktop: set initial centered position on mount
   useEffect(() => {
-    setPos({
-      x: Math.round(window.innerWidth / 2 - 130),
-      y: Math.round(window.innerHeight / 2 - 220),
-    });
-  }, []);
+    if (!isMobile) {
+      setPos({
+        x: Math.round(window.innerWidth / 2 - 130),
+        y: Math.max(16, Math.round(window.innerHeight / 2 - 220)),
+      });
+    }
+  }, [isMobile]);
 
+  // Desktop mouse drag
   const onMouseDown = (e: React.MouseEvent) => {
+    if (isMobile) return;
     if ((e.target as HTMLElement).closest('input, button, textarea, select')) return;
     e.preventDefault();
     dragRef.current = { startX: e.clientX, startY: e.clientY, originX: pos!.x, originY: pos!.y };
@@ -530,15 +539,26 @@ function InlineEditCard({ id, data, borderColor, bgLight, isFemale, handleStyle,
 
   const accentColor = isFemale ? '#f472b6' : '#60a5fa';
 
-  if (!pos) return null;
+  if (!isMobile && !pos) return null;
 
   return createPortal(
     <div
       onMouseDown={onMouseDown}
-      style={{
+      onClick={e => e.stopPropagation()}
+      onDoubleClick={e => e.stopPropagation()}
+      style={isMobile ? {
+        // Mobile: full-screen dimmed overlay, aligns sheet to bottom
         position: 'fixed',
-        left: pos.x,
-        top: pos.y,
+        inset: 0,
+        zIndex: 9999,
+        background: 'rgba(0,0,0,0.35)',
+        display: 'flex',
+        alignItems: 'flex-end',
+      } : {
+        // Desktop: draggable floating card
+        position: 'fixed',
+        left: pos!.x,
+        top: pos!.y,
         zIndex: 9999,
         width: 260,
         padding: 12,
@@ -552,6 +572,27 @@ function InlineEditCard({ id, data, borderColor, bgLight, isFemale, handleStyle,
         userSelect: 'none',
       }}
     >
+      {/* Inner content — on mobile wrapped in a bottom sheet panel */}
+      <div
+        onMouseDown={isMobile ? undefined : onMouseDown}
+        onClick={e => e.stopPropagation()}
+        style={isMobile ? {
+          width: '100%',
+          maxHeight: '92dvh',
+          overflowY: 'auto',
+          WebkitOverflowScrolling: 'touch',
+          background: '#fff',
+          borderRadius: '18px 18px 0 0',
+          padding: '16px 16px calc(16px + env(safe-area-inset-bottom, 0px))',
+          border: `2px solid ${accentColor}`,
+          borderBottom: 'none',
+          boxSizing: 'border-box',
+          fontFamily: 'var(--font-family)',
+        } : {
+          // Desktop: no inner wrapper needed, content sits directly
+          display: 'contents',
+        }}
+      >
       {/* Smart handles — same rules as compact mode */}
       <Handle type="target" position={Position.Top} id="top"
         style={canAcceptParent ? handleStyle({ top: -6 }) : disabledHandleStyle({ top: -6 })}
@@ -746,6 +787,7 @@ function InlineEditCard({ id, data, borderColor, bgLight, isFemale, handleStyle,
       {slideCropFile && (
         <ImageCropper imageFile={slideCropFile} onCrop={handleSlideCropDone} onCancel={() => setSlideCropFile(null)} mode="slide" />
       )}
+      </div> {/* end inner content div */}
     </div>,
     document.body,
   );
