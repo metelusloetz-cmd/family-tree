@@ -477,6 +477,8 @@ function InlineEditCard({ id, data, borderColor, bgLight, isFemale, handleStyle,
   const set = (key: string, val: string) => setForm(p => ({ ...p, [key]: val }));
 
   const [cropFile, setCropFile] = useState<File | null>(null);
+  const [slideCropFile, setSlideCropFile] = useState<File | null>(null);
+  const slideFileRef = useRef<HTMLInputElement>(null);
 
   // Open cropper when file selected (no size limit — cropper handles downscale)
   const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -490,6 +492,18 @@ function InlineEditCard({ id, data, borderColor, bgLight, isFemale, handleStyle,
   const handleCropDone = useCallback((base64: string) => {
     set('photoUrl', base64);
     setCropFile(null);
+  }, []);
+
+  // Slideshow photo added (landscape 16:9)
+  const handleSlideSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) setSlideCropFile(file);
+    e.target.value = '';
+  }, []);
+
+  const handleSlideCropDone = useCallback((base64: string) => {
+    setForm(f => ({ ...f, photos: [...f.photos, base64] }));
+    setSlideCropFile(null);
   }, []);
 
   const handleSave = () => {
@@ -684,6 +698,25 @@ function InlineEditCard({ id, data, borderColor, bgLight, isFemale, handleStyle,
       {/* ═══ EXPANDED SECTIONS ═══ */}
       {expanded && (
         <div style={{ marginTop: 8, display: 'flex', flexDirection: 'column', gap: 0 }}>
+
+          {/* Slideshow photos (landscape) */}
+          <div style={{ marginBottom: 8 }}>
+            <label style={{ display: 'block', fontSize: 8, fontWeight: 700, color: 'var(--color-text-muted)', marginBottom: 4, textTransform: 'uppercase', letterSpacing: 0.6 }}>📸 Фото (горизонтальные)</label>
+            <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+              {form.photos.map((src: string, i: number) => (
+                <div key={i} style={{ position: 'relative', width: 64, height: 36, borderRadius: 4, overflow: 'hidden' }}>
+                  <img src={src} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  <button onClick={() => setForm(f => ({ ...f, photos: f.photos.filter((_: any, j: number) => j !== i) }))}
+                    className="nodrag nopan"
+                    style={{ position: 'absolute', top: 1, right: 1, width: 14, height: 14, background: 'rgba(239,68,68,0.9)', border: 'none', borderRadius: '50%', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontSize: 8 }}>×</button>
+                </div>
+              ))}
+              <button onClick={() => slideFileRef.current?.click()} className="nodrag nopan"
+                style={{ width: 64, height: 36, borderRadius: 4, border: '1px dashed #e2e8f0', background: '#f8fafc', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#94a3b8', fontSize: 18 }}>+</button>
+            </div>
+            <input ref={slideFileRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleSlideSelect} />
+          </div>
+
           {/* Bio & occupation */}
           <MiniField label="Профессия" value={form.occupation} onChange={v => set('occupation', v)} placeholder="Род деятельности" />
           <MiniField label="Образование" value={form.education} onChange={v => set('education', v)} placeholder="Школа / вуз" />
@@ -705,13 +738,13 @@ function InlineEditCard({ id, data, borderColor, bgLight, isFemale, handleStyle,
         </div>
       )}
 
-      {/* Image Cropper Modal */}
+      {/* Avatar Cropper Modal (portrait 5:6) */}
       {cropFile && (
-        <ImageCropper
-          imageFile={cropFile}
-          onCrop={handleCropDone}
-          onCancel={() => setCropFile(null)}
-        />
+        <ImageCropper imageFile={cropFile} onCrop={handleCropDone} onCancel={() => setCropFile(null)} mode="avatar" />
+      )}
+      {/* Slide Cropper Modal (landscape 16:9) */}
+      {slideCropFile && (
+        <ImageCropper imageFile={slideCropFile} onCrop={handleSlideCropDone} onCancel={() => setSlideCropFile(null)} mode="slide" />
       )}
     </div>,
     document.body,

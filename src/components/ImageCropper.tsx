@@ -4,13 +4,14 @@ import Cropper from 'react-easy-crop';
 
 /**
  * ImageCropper — fullscreen modal via Portal.
- * Rendered outside React Flow to avoid clipping.
- * Aspect 5:6, output 200×240 JPEG.
+ * mode='avatar' → 5:6 portrait  200×240
+ * mode='slide'  → 16:9 landscape 320×180
  */
 
-const PHOTO_W = 200;
-const PHOTO_H = 240;
-const ASPECT = PHOTO_W / PHOTO_H;
+const DIMS = {
+  avatar: { w: 200, h: 240 },
+  slide:  { w: 320, h: 180 },
+};
 
 const createImage = (url: string): Promise<HTMLImageElement> =>
   new Promise((resolve, reject) => {
@@ -24,13 +25,15 @@ const createImage = (url: string): Promise<HTMLImageElement> =>
 async function getCroppedBase64(
   imageSrc: string,
   crop: { x: number; y: number; width: number; height: number },
+  mode: 'avatar' | 'slide',
 ): Promise<string> {
+  const { w, h } = DIMS[mode];
   const img = await createImage(imageSrc);
   const canvas = document.createElement('canvas');
-  canvas.width = PHOTO_W;
-  canvas.height = PHOTO_H;
+  canvas.width = w;
+  canvas.height = h;
   const ctx = canvas.getContext('2d')!;
-  ctx.drawImage(img, crop.x, crop.y, crop.width, crop.height, 0, 0, PHOTO_W, PHOTO_H);
+  ctx.drawImage(img, crop.x, crop.y, crop.width, crop.height, 0, 0, w, h);
   return canvas.toDataURL('image/jpeg', 0.85);
 }
 
@@ -38,9 +41,11 @@ interface ImageCropperProps {
   imageFile: File;
   onCrop: (base64: string) => void;
   onCancel: () => void;
+  mode?: 'avatar' | 'slide';
 }
 
-export const ImageCropper = ({ imageFile, onCrop, onCancel }: ImageCropperProps) => {
+export const ImageCropper = ({ imageFile, onCrop, onCancel, mode = 'avatar' }: ImageCropperProps) => {
+  const aspect = DIMS[mode].w / DIMS[mode].h;
   const [imageSrc, setImageSrc] = useState<string>('');
   const [crop, setCrop] = useState({ x: 0, y: 0 });
   const [zoom, setZoom] = useState(1);
@@ -59,7 +64,7 @@ export const ImageCropper = ({ imageFile, onCrop, onCancel }: ImageCropperProps)
   const handleSave = async () => {
     if (!croppedPixels || !imageSrc) return;
     try {
-      const base64 = await getCroppedBase64(imageSrc, croppedPixels);
+      const base64 = await getCroppedBase64(imageSrc, croppedPixels, mode);
       onCrop(base64);
     } catch (e) {
       console.error('Crop error:', e);
@@ -104,7 +109,7 @@ export const ImageCropper = ({ imageFile, onCrop, onCancel }: ImageCropperProps)
           image={imageSrc}
           crop={crop}
           zoom={zoom}
-          aspect={ASPECT}
+          aspect={aspect}
           onCropChange={setCrop}
           onCropComplete={onCropComplete}
           onZoomChange={setZoom}
